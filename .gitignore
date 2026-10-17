@@ -1,0 +1,16 @@
+# Logs & Temporary files
+*.log
+.DS_Store
+Thumbs.db
+
+# Node / Environment
+node_modules/
+.env
+.venv/
+__pycache__/
+
+# IDE & Editor caches
+.vscode/
+.idea/
+*.swp
+*.bak

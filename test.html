@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnostic Engine Verification Suite</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .test-container {
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+    .test-summary-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .test-suite-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .test-suite-header {
+      padding: 14px 20px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-subtle);
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .test-item {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-family: var(--font-mono);
+    }
+    .test-item:last-child {
+      border-bottom: none;
+    }
+    .badge-pass {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-fail {
+      background: rgba(244, 63, 94, 0.15);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .back-nav-btn {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .back-nav-btn:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <a href="index.html" class="back-nav-btn">
+      &larr; Back to Pipeline Diagnostic Studio Main App
+    </a>
+
+    <div class="test-summary-card">
+      <div>
+        <h2 style="font-size: 20px; color: #fff; margin-bottom: 4px;">Automated Engine Verification Suite</h2>
+        <p style="color: var(--text-muted); font-size: 13px;">Live unit and integration testing across parser, PII masking, schema diffing, and multi-dialect remediation.</p>
+      </div>
+      <div id="overall-status-pill" class="badge-pass" style="font-size: 14px; padding: 6px 16px;">
+        Running Verification...
+      </div>
+    </div>
+
+    <div id="test-results-container"></div>
+  </div>
+
+  <script type="module">
+    import { PRESETS } from "./engine/presets.js";
+    import { 
+      detectInfraError, 
+      extractLogMetadata, 
+      extractOffendingPayload, 
+      resilientParseJson 
+    } from "./engine/parser.js";
+    import { analyzeSchemaDiscrepancies } from "./engine/schemaAnalyzer.js";
+    import { 
+      generateRemediationCode, 
+      repairAndSanitizePayload 
+    } from "./engine/remediation.js";
+    import { maskStringPII, maskObjectPII } from "./engine/piiMasker.js";
+
+    const container = document.getElementById("test-results-container");
+    const overallPill = document.getElementById("overall-status-pill");
+
+    let totalAssertions = 0;
+    let passedAssertions = 0;
+
+    const suites = [];
+
+    function addSuite(name) {
+      const suite = { name, tests: [] };
+      suites.push(suite);
+      return {
+        assert(condition, desc) {
+          totalAssertions++;
+          if (condition) passedAssertions++;
+          suite.tests.push({ pass: !!condition, desc });
+        }
+      };
+    }
+
+    // Suite 1: PII Masker
+    {
+      const s = addSuite("1. PII Detection & Redaction Engine");
+      const emailRes = maskStringPII("dev.alert@corp.domain.com");
+      s.assert(emailRes === "[REDACTED_EMAIL]", "Masks standard email addresses");
+
+      const phoneRes = maskStringPII("+1 (555) 019-2834");
+      s.assert(phoneRes.includes("[REDACTED_PHONE]"), "Masks international formatted phone numbers");
+
+      const secretRes = maskStringPII("Bearer sup_sec_4981729019248572019a8f and sk_live_994827103948572019482");
+      s.assert(secretRes.includes("Bearer [REDACTED_SECRET]") && secretRes.includes("[REDACTED_SECRET]"), "Masks Bearer tokens and Stripe API keys");
+
+      const cardRes = maskStringPII("Card 4532-1234-5678-9010 and SSN 123-45-6789 in request.");
+      s.assert(cardRes.includes("[REDACTED_CARD]") && cardRes.includes("[REDACTED_SSN]"), "Masks Credit Cards and Social Security Numbers");
+
+      const uriRes = maskStringPII("postgresql://db_user:password123@prod-cluster:5432/main");
+      s.assert(uriRes.includes("db_user:[REDACTED_SECRET]@prod-cluster") && !uriRes.includes("password123"), "Redacts raw database passwords in connection URIs");
+
+      const deepObj = maskObjectPII({
+        user: { email: "alice@company.com" },
+        api_secret_key: "super_secret_token_12345",
+        id: 42
+      });
+      s.assert(deepObj.user.email === "[REDACTED_EMAIL]", "Deeply masks email inside nested JSON objects");
+      s.assert(deepObj.api_secret_key === "[REDACTED_SECRET]", "Masks secret key attributes");
+      s.assert(deepObj.id === 42, "Leaves numerical IDs uncorrupted");
+    }
+
+    // Suite 2: Noise Stripping & JSON Recovery
+    {
+      const s = addSuite("2. Noise Stripper & Resilient JSON Recovery");
+      const truncated = `Failing payload: { "order_id": 9942, "items": [{"sku": "A1", "price": 4.5}, ...`;
+      const { payload } = extractOffendingPayload(truncated);
+      s.assert(payload !== null && payload.order_id === 9942, "Gracefully handles truncated payloads with trailing dots (...)");
+      s.assert(Array.isArray(payload.items) && payload.items[0].sku === "A1", "Closes unclosed brackets and braces automatically");
+
+      const midKey = `{"id": 404, "status": "active", "unfinis`;
+      const parsedMidKey = resilientParseJson(midKey);
+      s.assert(parsedMidKey !== null && parsedMidKey.id === 404 && parsedMidKey.status === "active", "Prunes dangling keys when cut off mid-word");
+
+      const escaped = `"{\\"status\\": \\"failed\\", \\"code\\": 400}"`;
+      const parsed = resilientParseJson(escaped);
+      s.assert(parsed !== null && parsed.status === "failed", "Unescapes stringified escaped JSON quotes (\\\")");
+
+      const pyTrace = `{'order_id': 8812, 'created': datetime.datetime(2024, 10, 10, 8, 30), 'price': Decimal('19.99'), 'active': True}`;
+      const parsedPy = resilientParseJson(pyTrace);
+      s.assert(parsedPy !== null && parsedPy.order_id === 8812 && parsedPy.price === 19.99 && parsedPy.active === true, "Normalizes Python datetime and Decimal constructors in tracebacks");
+    }
+
+    // Suite 3: Infrastructure / Non-Schema Errors
+    {
+      const s = addSuite("3. Infrastructure & System Error Classifier");
+      const log403 = "google.api_core.exceptions.Forbidden: 403 Caller does not have storage.objects.get permission";
+      const infra = detectInfraError(log403);
+      s.assert(infra !== null && infra.isInfraError === true, "Flags 403 Forbidden as Infrastructure Error");
+      s.assert(infra.category.includes("Authentication"), "Classifies as Auth/IAM issue");
+
+      const logConn = "psycopg2.OperationalError: could not connect to server: Connection refused (10061)";
+      const conn = detectInfraError(logConn);
+      s.assert(conn !== null && conn.isInfraError === true, "Flags Connection refused as Network Error");
+
+      const logDeadlock = "ERROR: deadlock detected - Process 8412 waits for ShareLock";
+      const deadlock = detectInfraError(logDeadlock);
+      s.assert(deadlock !== null && deadlock.category.includes("Deadlock"), "Classifies database lock deadlocks");
+
+      const logSnowflake = "snowflake.connector.errors.DatabaseError: 390144 (08001): JWT token is invalid or expired";
+      const sf = detectInfraError(logSnowflake);
+      s.assert(sf !== null && sf.category.includes("Authentication"), "Classifies Snowflake JWT expiration");
+    }
+
+    // Suite 4: Preset 1 - BigQuery Airflow
+    {
+      const s = addSuite("4. BigQuery / Airflow End-to-End Diagnostic");
+      const p = PRESETS.bigquery_airflow;
+      const meta = extractLogMetadata(p.log);
+      s.assert(meta.taskId === "ingest_stripe_transactions", "Extracts Task ID from Airflow header");
+      s.assert(meta.dagId === "finance_daily_reconciliation", "Extracts DAG ID");
+
+      const { payload } = extractOffendingPayload(p.log);
+      s.assert(payload !== null && payload.transaction_id === "txn_982348234", "Extracts offending payload from Airflow log dump");
+
+      const discrepancies = analyzeSchemaDiscrepancies(payload, p.schema, p.log);
+      s.assert(discrepancies.length >= 2, "Discrepancy count >= 2");
+      s.assert(discrepancies.some(d => d.fieldPath === "created_at" && d.issueCategory === "Type Mismatch"), "Identifies created_at invalid calendar date");
+      s.assert(discrepancies.some(d => d.fieldPath === "transaction_amount" && d.issueCategory === "Type Mismatch"), "Identifies transaction_amount string into NUMERIC");
+
+      const code = generateRemediationCode("bigquery", discrepancies, meta, payload);
+      s.assert(code.includes("SAFE.PARSE_TIMESTAMP") && code.includes("SAFE_CAST"), "Generates SAFE_CAST and SAFE.PARSE_TIMESTAMP code patch");
+      s.assert(code.includes("REGEXP_REPLACE"), "Includes currency/symbol sanitization in BigQuery remediation");
+
+      const sanitized = repairAndSanitizePayload(payload, discrepancies);
+      s.assert(sanitized.customer_email === "[REDACTED_EMAIL]", "Masks customer_email in sanitized payload");
+      s.assert(sanitized.api_secret_key === "[REDACTED_SECRET]", "Masks api_secret_key in sanitized payload");
+      s.assert(sanitized.transaction_amount === 0.0, "Repairs 'N/A' into valid numeric 0.0");
+    }
+
+    // Suite 5: Preset 2 - DuckDB Parquet
+    {
+      const s = addSuite("5. DuckDB Parquet End-to-End Diagnostic");
+      const p = PRESETS.duckdb_parquet;
+      const meta = extractLogMetadata(p.log);
+      s.assert(meta.lineInfo === "Row 429", "Extracts row number reference");
+
+      const { payload } = extractOffendingPayload(p.log);
+      s.assert(payload !== null && payload[0].sku === "SKU-MONITOR-4K", "Extracts offending chunk header");
+
+      const discrepancies = analyzeSchemaDiscrepancies(payload, p.schema, p.log);
+      s.assert(discrepancies.some(d => d.fieldPath === "item_count" && d.issueCategory === "Type Mismatch"), "Identifies float string into INT32 conflict");
+      s.assert(discrepancies.some(d => d.fieldPath === "discount_rate" && d.issueCategory === "Null Constraint Violation"), "Identifies null constraint violation on discount_rate NOT NULL");
+
+      const code = generateRemediationCode("duckdb", discrepancies, meta, payload);
+      s.assert(code.includes("TRY_CAST") && code.includes("union_by_name = true"), "Generates DuckDB TRY_CAST and union_by_name parquet options");
+    }
+
+    // Suite 6: Preset 3 - Pydantic Python
+    {
+      const s = addSuite("6. Pydantic / Python End-to-End Diagnostic");
+      const p = PRESETS.pydantic_python;
+      const { payload } = extractOffendingPayload(p.log);
+      const meta = extractLogMetadata(p.log);
+      const discrepancies = analyzeSchemaDiscrepancies(payload, p.schema, p.log);
+
+      s.assert(discrepancies.some(d => d.fieldPath === "customer.email" && d.issueCategory === "Missing Required Field"), "Identifies missing required customer.email");
+      s.assert(discrepancies.some(d => d.fieldPath.includes("quantity") && d.issueCategory === "Type Mismatch"), "Identifies type coercion failure on integer ('ten')");
+
+      const code = generateRemediationCode("pydantic", discrepancies, meta, payload);
+      s.assert(code.includes("@field_validator") && code.includes("sanitize_incoming_payload"), "Generates @field_validator and sanitizer helper");
+    }
+
+    // Render Results
+    container.innerHTML = suites.map(suite => `
+      <div class="test-suite-card">
+        <div class="test-suite-header">
+          <span>${suite.name}</span>
+          <span class="badge-pass">${suite.tests.filter(t => t.pass).length} / ${suite.tests.length} PASS</span>
+        </div>
+        ${suite.tests.map(t => `
+          <div class="test-item">
+            <span>${t.desc}</span>
+            <span class="${t.pass ? 'badge-pass' : 'badge-fail'}">${t.pass ? 'PASS' : 'FAIL'}</span>
+          </div>
+        `).join("")}
+      </div>
+    `).join("");
+
+    if (passedAssertions === totalAssertions) {
+      overallPill.className = "badge-pass";
+      overallPill.textContent = `All ${passedAssertions}/${totalAssertions} Assertions Passed (100%)`;
+    } else {
+      overallPill.className = "badge-fail";
+      overallPill.textContent = `${passedAssertions}/${totalAssertions} Passed`;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipeline Data & Schema Diagnostic Studio</title>
+  <meta name="description" content="Triage orchestrator errors, detect schema discrepancies, and generate SQL/Python remediation patches with automatic PII masking.">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Application Header -->
+  <header class="header-container">
+    <div class="header-inner">
+      <div class="brand-wrapper">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <div class="title-group">
+          <h1>
+            Pipeline Data &amp; Schema Diagnostic Studio
+            <span class="version-tag">v2.4 PRO</span>
+          </h1>
+          <p>Triage orchestrator errors, detect schema discrepancies, and generate SQL/Python remediation patches.</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="test.html" class="preset-btn" style="padding: 5px 12px; font-size: 11.5px; text-decoration: none; border-color: rgba(6, 182, 212, 0.4);" title="Open automated unit & integration test runner">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>Run Test Suite</span>
+        </a>
+        <div class="header-status">
+          <span class="status-dot"></span>
+          <span>Diagnostic Engine Active</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <main class="main-wrapper">
+
+    <!-- 1. Quick Presets Section -->
+    <section class="presets-section" aria-label="Quick Presets">
+      <div class="presets-label">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+        </svg>
+        <span>Quick Presets:</span>
+      </div>
+      <div class="presets-buttons">
+        <button type="button" class="preset-btn" id="preset-bigquery" title="Airflow task with BigQuery Timestamp & Numeric type conversion failure">
+          <span>BigQuery / Airflow Mismatch</span>
+          <span class="preset-badge">NUMERIC / TIMESTAMP</span>
+        </button>
+        <button type="button" class="preset-btn" id="preset-duckdb" title="DuckDB ConversionException and Parquet schema drift">
+          <span>DuckDB Parquet Mismatch</span>
+          <span class="preset-badge">TRY_CAST / Drift</span>
+        </button>
+        <button type="button" class="preset-btn" id="preset-pydantic" title="Pydantic v2 ValidationError with missing keys and type coercion">
+          <span>Pydantic / Python Validation</span>
+          <span class="preset-badge">Field Required / Coerce</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- 2. Input Configuration Panel -->
+    <section class="panel-card" aria-label="Diagnostic Configuration">
+      <div class="panel-header">
+        <div class="panel-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+          <span>Triage Inputs &amp; Target Dialect</span>
+        </div>
+
+        <div class="dialect-selector-group">
+          <label for="target-dialect" class="dialect-label">Target Remediation Dialect:</label>
+          <div class="select-wrapper">
+            <select id="target-dialect" class="custom-select">
+              <option value="bigquery">BigQuery (SQL DDL / SAFE_CAST)</option>
+              <option value="duckdb">DuckDB (TRY_CAST / Parquet Ingestion)</option>
+              <option value="pydantic">Python / Pydantic (Field Validators / Dict Sanitization)</option>
+            </select>
+            <div class="select-caret">▼</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dual Input Grid -->
+      <div class="input-grid">
+        <!-- Input 1: Raw Error Log or Payload (Required) -->
+        <div class="input-column">
+          <div class="input-label-row">
+            <label for="raw-log-input" class="input-label">
+              <span>Raw Pipeline Error Log or Failing JSON Payload</span>
+              <span class="input-tag-req">Required</span>
+            </label>
+            <span class="char-counter" id="log-counter">0 chars / 0 lines</span>
+          </div>
+          <div class="textarea-container">
+            <textarea
+              id="raw-log-input"
+              class="code-textarea"
+              spellcheck="false"
+              placeholder="Paste orchestrator error logs, Airflow stack traces, DuckDB / BigQuery exception dumps, or raw failing JSON payload here...&#10;&#10;Example:&#10;google.api_core.exceptions.BadRequest: 400 Could not convert value '2024-02-30T14:00:00Z' to TIMESTAMP for column 'created_at'&#10;Failing Record Dump: { &quot;transaction_id&quot;: &quot;txn_1&quot;, ... }"
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Input 2: Expected Schema or DDL (Optional) -->
+        <div class="input-column">
+          <div class="input-label-row">
+            <label for="expected-schema-input" class="input-label">
+              <span>Expected Schema or Target DDL</span>
+              <span class="input-tag-opt">Optional</span>
+            </label>
+            <span class="char-counter" id="schema-counter">0 chars / 0 lines</span>
+          </div>
+          <div class="textarea-container">
+            <textarea
+              id="expected-schema-input"
+              class="code-textarea"
+              spellcheck="false"
+              placeholder="Paste CREATE TABLE DDL, JSON Schema, or reference valid JSON snippet here...&#10;&#10;If omitted, the diagnostic engine automatically infers expected schema from log statements and column hints.&#10;&#10;Example:&#10;CREATE TABLE analytics.raw_transactions (&#10;  transaction_id STRING NOT NULL,&#10;  transaction_amount NUMERIC NOT NULL,&#10;  created_at TIMESTAMP NOT NULL&#10;);"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="actions-row">
+        <div class="shortcut-tip">
+          <span>Pro-tip: Press</span>
+          <kbd class="kbd">Ctrl</kbd> + <kbd class="kbd">Enter</kbd>
+          <span>to run analysis instantly</span>
+        </div>
+        <div class="actions-buttons">
+          <button type="button" class="btn-secondary" id="clear-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Clear</span>
+          </button>
+          <button type="button" class="btn-primary" id="analyze-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Analyze &amp; Diagnose</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Empty State Guidance (Shown before analysis runs) -->
+    <div class="empty-state" id="empty-state-card">
+      <div class="empty-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </div>
+      <h3>Ready for Pipeline Diagnostic Run</h3>
+      <p>Select one of the <strong>Quick Presets</strong> above or paste your error logs into the input configuration panel to isolate offending payloads, triage schema mismatches, and generate remediation code.</p>
+      <button type="button" class="btn-secondary" id="load-sample-btn" style="margin: 0 auto;">
+        Load Sample BigQuery Log
+      </button>
+    </div>
+
+    <!-- 4. Output Presentation Section (Populated when analysis runs) -->
+    <section class="results-wrapper" id="results-section" style="display: none;" aria-label="Diagnostic Results">
+
+      <!-- Output Card 1: Root-Cause Triage Banner -->
+      <article class="triage-banner" id="triage-banner-card">
+        <div class="banner-top-row">
+          <div class="status-badge-group">
+            <span class="triage-badge badge-mismatch" id="triage-status-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <span id="badge-status-text">Schema Mismatch Detected</span>
+            </span>
+          </div>
+          <div class="chips-container" id="metadata-chips-container">
+            <!-- Chips dynamically generated -->
+          </div>
+        </div>
+
+        <div class="banner-summary-text" id="root-cause-summary">
+          <!-- Plain English root-cause explanation -->
+        </div>
+
+        <!-- Optional DevOps Remediation Box for Infra Failures -->
+        <div class="infra-remediation-box" id="infra-remediation-container" style="display: none;">
+          <div class="infra-remediation-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6.01" y2="6"></line>
+              <line x1="6" y1="18" x2="6.01" y2="18"></line>
+            </svg>
+            <span>Actionable Infrastructure Remediation Plan:</span>
+          </div>
+          <ol class="infra-steps-list" id="infra-steps-list">
+            <!-- Step items -->
+          </ol>
+        </div>
+      </article>
+
+      <!-- Output Card 2: Schema Diff Table -->
+      <article class="output-card" id="schema-diff-card">
+        <div class="output-card-header">
+          <div class="output-card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            <span>Schema Discrepancy Breakdown</span>
+            <span class="count-pill" id="diff-count-pill">0 Issues</span>
+          </div>
+          <span style="font-size: 11.5px; color: var(--text-dim); font-family: var(--font-mono);">
+            PII Masking Active: [REDACTED_*]
+          </span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="diff-table">
+            <thead>
+              <tr>
+                <th>Field Path</th>
+                <th>Expected Type</th>
+                <th>Observed Value / Received Type</th>
+                <th>Issue Category</th>
+                <th>Action Needed</th>
+              </tr>
+            </thead>
+            <tbody id="diff-table-body">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <!-- Dual Column Layout: Remediation Code + Sanitized Payload -->
+      <div class="code-cards-grid">
+        <!-- Output Card 3: Remediation Code Generator -->
+        <article class="output-card">
+          <div class="code-box-header">
+            <div class="code-box-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              <span>Remediation Code Patch</span>
+              <span class="count-pill" id="remediation-dialect-pill">BigQuery SQL</span>
+            </div>
+            <button type="button" class="copy-btn" id="copy-code-btn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Copy Code</span>
+            </button>
+          </div>
+          <pre class="code-pre"><code id="remediation-code-block">-- Awaiting analysis...</code></pre>
+        </article>
+
+        <!-- Output Card 4: Sanitized Payload Exporter -->
+        <article class="output-card">
+          <div class="code-box-header">
+            <div class="code-box-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>Sanitized Payload (Repaired &amp; Redacted)</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="copy-btn" id="download-json-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Download</span>
+              </button>
+              <button type="button" class="copy-btn" id="copy-json-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy JSON</span>
+              </button>
+            </div>
+          </div>
+          <pre class="code-pre"><code id="sanitized-json-block">// Awaiting analysis...</code></pre>
+        </article>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Toast Notifications Container -->
+  <aside class="toast-container" id="toast-container" aria-live="polite"></aside>
+
+  <!-- Footer -->
+  <footer class="footer-container">
+    <div class="footer-inner">
+      <div class="footer-security-note">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>Zero Exfiltration: All parsing, schema classification, and PII masking occur 100% locally in-browser.</span>
+      </div>
+      <div>Pipeline Diagnostic Studio &bull; Data &amp; Analytics Engineering Toolset</div>
+    </div>
+  </footer>
+
+  <!-- Main JavaScript App -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
