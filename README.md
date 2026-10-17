@@ -1,6 +1,16 @@
+<p align="center">
+  <img src="cover.png" alt="Pipeline Data & Schema Diagnostic Studio Cover" width="100%" />
+</p>
+
 # Pipeline Data & Schema Diagnostic Studio
 
-> **Single-Page Diagnostic Tool** designed to triage orchestrator pipeline error logs, isolate corrupted payloads, detect schema discrepancies, and generate executable remediation code patches.
+[![Live App](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-06b6d4?style=for-the-badge&logo=github)](https://faisal37990.github.io/pipeline-diagnostic-studio/)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-28%20Passing-10b981?style=for-the-badge)](https://faisal37990.github.io/pipeline-diagnostic-studio/test.html)
+[![License](https://img.shields.io/badge/License-MIT-3b82f6?style=for-the-badge)](#)
+
+> **Live Productivity App**: [https://faisal37990.github.io/pipeline-diagnostic-studio/](https://faisal37990.github.io/pipeline-diagnostic-studio/)
+
+**Pipeline Data & Schema Diagnostic Studio** is an in-browser triage tool designed to triage orchestrator pipeline error logs, isolate corrupted payloads, detect schema discrepancies, and generate executable remediation code patches with zero data exfiltration.
 
 ---
 
